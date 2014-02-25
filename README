@@ -1,0 +1,5 @@
+The goal of this repository is to contain some reusable AWS CloudFormation
+templates and scripts.
+
+Instead of doing the same tasks over and over again by hand, I believe having
+generic templates at hand can help to launch new environments very very fast.

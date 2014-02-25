@@ -1,0 +1,509 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Basic CloudFormation stack to create an AWS Virtual Private Cloud",
+  "Parameters": {
+    "VpcCidrBlock": {
+      "Type": "String",
+      "Default": "10.90.0.0/16"
+    },
+    "PublicSubnetCidrBlock": {
+      "Type": "String",
+      "Default": "10.90.128.0/24"
+    },
+    "PrivateSubnetCidrBlock": {
+      "Type": "String",
+      "Default": "10.90.0.0/24"
+    },
+    "PublicSubnetAvailabilityZone": {
+      "Type": "String",
+      "Default": "us-west-2a"
+    },
+    "PrivateSubnetAvailabilityZone": {
+      "Type": "String",
+      "Default": "us-west-2b"
+    },
+    "DomainName": {
+      "Type": "String",
+      "Default": "us-west-2.compute.internal"
+    },
+    "EnablePrivateSubnet": {
+      "Type": "String",
+      "Default": "false"
+    },
+    "NATInstancePrivateIpAddress": {
+      "Type": "String",
+      "Default": "10.90.128.250"
+    },
+    "NATInstanceDisableApiTermination": {
+      "Type": "String",
+      "Default": "false"
+    },
+    "NATInstanceImageId": {
+      "Type": "String",
+      "Default": "ami-6d29b85d"
+    },
+    "NATInstanceInstanceType": {
+      "Type": "String",
+      "Default": "t1.micro"
+    },
+    "NATInstanceKernelId": {
+      "Type": "String",
+      "Default": "aki-fc37bacc"
+    },
+    "NATInstanceKeyName": {
+      "Type": "String"
+    },
+    "NATInstanceMonitoring": {
+      "Type": "String",
+      "Default": "false"
+    }
+  },
+  "Conditions": {
+    "IsPrivateSubnetEnabled": {
+      "Fn::Equals": [
+        {
+          "Ref": "EnablePrivateSubnet"
+        },
+        "true"
+      ]
+    }
+  },
+  "Resources": {
+    "VPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "VpcCidrBlock"
+        },
+        "InstanceTenancy": "default",
+        "EnableDnsSupport": "true",
+        "EnableDnsHostnames": "true"
+      }
+    },
+    "PublicSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "PublicSubnetCidrBlock"
+        },
+        "AvailabilityZone": {
+          "Ref": "PublicSubnetAvailabilityZone"
+        },
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PrivateSubnet": {
+      "Type": "AWS::EC2::Subnet",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "CidrBlock": {
+          "Ref": "PrivateSubnetCidrBlock"
+        },
+        "AvailabilityZone": {
+          "Ref": "PrivateSubnetAvailabilityZone"
+        },
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "InternetGateway": {
+      "Type": "AWS::EC2::InternetGateway",
+      "Properties": {
+      }
+    },
+    "DHCPOptions": {
+      "Type": "AWS::EC2::DHCPOptions",
+      "Properties": {
+        "DomainName": {
+          "Ref": "DomainName"
+        },
+        "DomainNameServers": [
+          "AmazonProvidedDNS"
+        ]
+      }
+    },
+    "PublicSubnetNetworkAcl": {
+      "Type": "AWS::EC2::NetworkAcl",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PrivateSubnetNetworkAcl": {
+      "Type": "AWS::EC2::NetworkAcl",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PrivateSubnetRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "PublicSubnetRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        }
+      }
+    },
+    "NATSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "GroupDescription": "NAT instance security group",
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": {
+              "Ref": "PublicSubnetCidrBlock"
+            }
+          },
+          {
+            "IpProtocol": "-1",
+            "CidrIp": {
+              "Ref": "PrivateSubnetCidrBlock"
+            }
+          }
+        ]
+      }
+    },
+    "PublicSubnetNetworkAclEgressEntry1": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Egress": true,
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "PublicSubnetNetworkAcl"
+        }
+      }
+    },
+    "PublicSubnetNetworkAclIngressEntry1": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "PublicSubnetNetworkAcl"
+        }
+      }
+    },
+    "PrivateSubnetNetworkAclEgressEntry1": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Egress": true,
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "PrivateSubnetNetworkAcl"
+        }
+      }
+    },
+    "PrivateSubnetNetworkAclIngressEntry1": {
+      "Type": "AWS::EC2::NetworkAclEntry",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "CidrBlock": "0.0.0.0/0",
+        "Protocol": "-1",
+        "RuleAction": "allow",
+        "RuleNumber": "100",
+        "NetworkAclId": {
+          "Ref": "PrivateSubnetNetworkAcl"
+        }
+      }
+    },
+    "PublicSubnetNetworkAclAssociation": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "PublicSubnetNetworkAcl"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnet"
+        }
+      }
+    },
+    "PrivateSubnetNetworkAclAssociation": {
+      "Type": "AWS::EC2::SubnetNetworkAclAssociation",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "NetworkAclId": {
+          "Ref": "PrivateSubnetNetworkAcl"
+        },
+        "SubnetId": {
+          "Ref": "PrivateSubnet"
+        }
+      }
+    },
+    "VPCGatewayAttachment": {
+      "Type": "AWS::EC2::VPCGatewayAttachment",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "InternetGatewayId": {
+          "Ref": "InternetGateway"
+        }
+      }
+    },
+    "PublicSubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "PublicSubnetRouteTable"
+        },
+        "SubnetId": {
+          "Ref": "PublicSubnet"
+        }
+      }
+    },
+    "PrivateSubnetRouteTableAssociation": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "RouteTableId": {
+          "Ref": "PrivateSubnetRouteTable"
+        },
+        "SubnetId": {
+          "Ref": "PrivateSubnet"
+        }
+      }
+    },
+    "PrivateSubnetInternetRoute": {
+      "Type": "AWS::EC2::Route",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "PrivateSubnetRouteTable"
+        },
+        "InstanceId": {
+          "Ref": "NATInstance"
+        }
+      }
+    },
+    "PublicSubnetInternetRoute": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "RouteTableId": {
+          "Ref": "PublicSubnetRouteTable"
+        },
+        "GatewayId": {
+          "Ref": "InternetGateway"
+        }
+      },
+      "DependsOn": "VPCGatewayAttachment"
+    },
+    "VPCDHCPOptionsAssociation": {
+      "Type": "AWS::EC2::VPCDHCPOptionsAssociation",
+      "Properties": {
+        "VpcId": {
+          "Ref": "VPC"
+        },
+        "DhcpOptionsId": {
+          "Ref": "DHCPOptions"
+        }
+      }
+    },
+    "NATInstanceEIP": {
+      "Type": "AWS::EC2::EIP",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "Domain": "vpc"
+      }
+    },
+    "NATEIPAssociation": {
+      "Type": "AWS::EC2::EIPAssociation",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "InstanceId": {
+          "Ref": "NATInstance"
+        },
+        "AllocationId": {
+          "Fn::GetAtt": [
+            "NATInstanceEIP",
+            "AllocationId"
+          ]
+        }
+      }
+    },
+    "NATInstance": {
+      "Type": "AWS::EC2::Instance",
+      "Condition": "IsPrivateSubnetEnabled",
+      "Properties": {
+        "DisableApiTermination": {
+          "Ref": "NATInstanceDisableApiTermination"
+        },
+        "ImageId": {
+          "Ref": "NATInstanceImageId"
+        },
+        "InstanceType": {
+          "Ref": "NATInstanceInstanceType"
+        },
+        "KernelId": {
+          "Ref": "NATInstanceKernelId"
+        },
+        "KeyName": {
+          "Ref": "NATInstanceKeyName"
+        },
+        "Monitoring": {
+          "Ref": "NATInstanceMonitoring"
+        },
+        "SourceDestCheck": "false",
+        "NetworkInterfaces": [
+          {
+            "DeleteOnTermination": "true",
+            "DeviceIndex": 0,
+            "SubnetId": {
+              "Ref": "PublicSubnet"
+            },
+            "PrivateIpAddresses": [
+              {
+                "PrivateIpAddress": {
+                  "Ref": "NATInstancePrivateIpAddress"
+                },
+                "Primary": "true"
+              }
+            ],
+            "GroupSet": [
+              {
+                "Ref": "NATSecurityGroup"
+              }
+            ]
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::Join": [
+                "-",
+                [
+                  {
+                    "Ref": "AWS::StackName"
+                  },
+                  "NATInstance"
+                ]
+              ]
+            }
+          }
+        ]
+      }
+    }
+  },
+  "Outputs": {
+    "VPC": {
+      "Value": {
+        "Ref": "VPC"
+      }
+    },
+    "VpcCidrBlock": {
+      "Value": {
+        "Ref": "VpcCidrBlock"
+      }
+    },
+    "PublicSubnet": {
+      "Value": {
+        "Ref": "PublicSubnet"
+      }
+    },
+    "PublicSubnetCidrBlock": {
+      "Value": {
+        "Ref": "PublicSubnetCidrBlock"
+      }
+    },
+    "PrivateSubnet": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Ref": "PrivateSubnet"
+      }
+    },
+    "PrivateSubnetCidrBlock": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Ref": "PrivateSubnetCidrBlock"
+      }
+    },
+    "NATInstance": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Ref": "NATInstance"
+      }
+    },
+    "NATInstanceAvailabilityZone": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Fn::GetAtt": [
+          "NATInstance",
+          "AvailabilityZone"
+        ]
+      }
+    },
+    "NATInstancePrivateDnsName": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Fn::GetAtt": [
+          "NATInstance",
+          "PrivateDnsName"
+        ]
+      }
+    },
+    "NATInstancePublicDnsName": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Fn::GetAtt": [
+          "NATInstance",
+          "PublicDnsName"
+        ]
+      }
+    },
+    "NATInstancePrivateIp": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Fn::GetAtt": [
+          "NATInstance",
+          "PrivateIp"
+        ]
+      }
+    },
+    "NATInstancePublicIp": {
+      "Condition": "IsPrivateSubnetEnabled",
+      "Value": {
+        "Fn::GetAtt": [
+          "NATInstance",
+          "PublicIp"
+        ]
+      }
+    }
+  }
+}
