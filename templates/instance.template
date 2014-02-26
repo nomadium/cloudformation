@@ -1,0 +1,229 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Basic stack to launch an EC2 instance inside an AWS VPC",
+  "Parameters": {
+    "VPCStackURL": {
+      "Type": "String"
+    },
+    "TrustedCidrBlock": {
+      "Type": "String"
+    },
+    "KeyName": {
+      "Type": "String"
+    }
+  },
+  "Mappings": {
+    "InstanceSettingsMap": {
+      "us-west-2": {
+        "InstanceDisableApiTermination": "false",
+        "InstanceImageId": "ami-de2042ee",
+        "InstanceType": "t1.micro",
+        "InstanceMonitoring": "false",
+        "InstancePrivateIpAddress": "10.90.128.10",
+        "InstanceName": "foo-instance"
+      }
+    }
+  },
+  "Resources": {
+    "VPCStack": {
+      "Type": "AWS::CloudFormation::Stack",
+      "Properties": {
+        "TemplateURL": {
+          "Ref": "VPCStackURL"
+        },
+        "Parameters": {
+          "NATInstanceKeyName": {
+            "Ref": "KeyName"
+          }
+        }
+      }
+    },
+    "SecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+        "GroupDescription": "Security group to allow communication to/from the instance",
+        "VpcId": {
+          "Fn::GetAtt": [
+            "VPCStack",
+            "Outputs.VPC"
+          ]
+        },
+        "SecurityGroupEgress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": "0.0.0.0/0"
+          }
+        ],
+        "SecurityGroupIngress": [
+          {
+            "IpProtocol": "-1",
+            "CidrIp": {
+              "Ref": "TrustedCidrBlock"
+            }
+          }
+        ]
+      }
+    },
+    "Instance": {
+      "Type": "AWS::EC2::Instance",
+      "Properties": {
+        "DisableApiTermination": {
+          "Fn::FindInMap": [
+            "InstanceSettingsMap",
+            {
+              "Ref": "AWS::Region"
+            },
+            "InstanceDisableApiTermination"
+          ]
+        },
+        "ImageId": {
+          "Fn::FindInMap": [
+            "InstanceSettingsMap",
+            {
+              "Ref": "AWS::Region"
+            },
+            "InstanceImageId"
+          ]
+        },
+        "InstanceType": {
+          "Fn::FindInMap": [
+            "InstanceSettingsMap",
+            {
+              "Ref": "AWS::Region"
+            },
+            "InstanceType"
+          ]
+        },
+        "KeyName": {
+          "Ref": "KeyName"
+        },
+        "Monitoring": {
+          "Fn::FindInMap": [
+            "InstanceSettingsMap",
+            {
+              "Ref": "AWS::Region"
+            },
+            "InstanceMonitoring"
+          ]
+        },
+        "NetworkInterfaces": [
+          {
+            "AssociatePublicIpAddress": "true",
+            "DeleteOnTermination": "true",
+            "DeviceIndex": 0,
+            "SubnetId": {
+              "Fn::GetAtt": [
+                "VPCStack",
+                "Outputs.PublicSubnet"
+              ]
+            },
+            "PrivateIpAddresses": [
+              {
+                "PrivateIpAddress": {
+                  "Fn::FindInMap": [
+                    "InstanceSettingsMap",
+                    {
+                      "Ref": "AWS::Region"
+                    },
+                    "InstancePrivateIpAddress"
+                  ]
+                },
+                "Primary": "true"
+              }
+            ],
+            "GroupSet": [
+              {
+                "Ref": "SecurityGroup"
+              }
+            ]
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": {
+              "Fn::FindInMap": [
+                "InstanceSettingsMap",
+                {
+                  "Ref": "AWS::Region"
+                },
+                "InstanceName"
+              ]
+            }
+          }
+        ],
+        "Tenancy": "default"
+      }
+    }
+  },
+  "Outputs": {
+    "VPC": {
+      "Value": {
+        "Fn::GetAtt": [
+          "VPCStack",
+          "Outputs.VPC"
+        ]
+      }
+    },
+    "SecurityGroup": {
+      "Value": {
+        "Ref": "SecurityGroup"
+      }
+    },
+    "Instance": {
+      "Value": {
+        "Ref": "Instance"
+      }
+    },
+    "InstanceAvailabilityZone": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Instance",
+          "AvailabilityZone"
+        ]
+      }
+    },
+    "InstancePrivateDnsName": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Instance",
+          "PrivateDnsName"
+        ]
+      }
+    },
+    "InstancePublicDnsName": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Instance",
+          "PublicDnsName"
+        ]
+      }
+    },
+    "InstancePrivateIp": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Instance",
+          "PrivateIp"
+        ]
+      }
+    },
+    "InstancePublicIp": {
+      "Value": {
+        "Fn::GetAtt": [
+          "Instance",
+          "PublicIp"
+        ]
+      }
+    },
+    "TrustedCidrBlock": {
+      "Value": {
+        "Ref": "TrustedCidrBlock"
+      }
+    },
+    "KeyName": {
+      "Value": {
+        "Ref": "KeyName"
+      }
+    }
+  }
+}
