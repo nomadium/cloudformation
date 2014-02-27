@@ -10,18 +10,30 @@
     },
     "KeyName": {
       "Type": "String"
-    }
-  },
-  "Mappings": {
-    "InstanceSettingsMap": {
-      "us-west-2": {
-        "InstanceDisableApiTermination": "false",
-        "InstanceImageId": "ami-de2042ee",
-        "InstanceType": "t1.micro",
-        "InstanceMonitoring": "false",
-        "InstancePrivateIpAddress": "10.90.128.10",
-        "InstanceName": "foo-instance"
-      }
+    },
+    "InstanceDisableApiTermination": {
+      "Type": "String",
+      "Default": "false"
+    },
+    "InstanceImageId": {
+      "Type": "String",
+      "Default": "ami-de2042ee"
+    },
+    "InstanceType": {
+      "Type": "String",
+      "Default": "t1.micro"
+    },
+    "InstanceMonitoring": {
+      "Type": "String",
+      "Default": "false"
+    },
+    "InstancePrivateIpAddress": {
+      "Type": "String",
+      "Default": "10.90.128.10"
+    },
+    "InstanceName": {
+      "Type": "String",
+      "Default": "foo-instance"
     }
   },
   "Resources": {
@@ -68,43 +80,19 @@
       "Type": "AWS::EC2::Instance",
       "Properties": {
         "DisableApiTermination": {
-          "Fn::FindInMap": [
-            "InstanceSettingsMap",
-            {
-              "Ref": "AWS::Region"
-            },
-            "InstanceDisableApiTermination"
-          ]
+          "Ref": "InstanceDisableApiTermination"
         },
         "ImageId": {
-          "Fn::FindInMap": [
-            "InstanceSettingsMap",
-            {
-              "Ref": "AWS::Region"
-            },
-            "InstanceImageId"
-          ]
+          "Ref": "InstanceImageId"
         },
         "InstanceType": {
-          "Fn::FindInMap": [
-            "InstanceSettingsMap",
-            {
-              "Ref": "AWS::Region"
-            },
-            "InstanceType"
-          ]
+          "Ref": "InstanceType"
         },
         "KeyName": {
           "Ref": "KeyName"
         },
         "Monitoring": {
-          "Fn::FindInMap": [
-            "InstanceSettingsMap",
-            {
-              "Ref": "AWS::Region"
-            },
-            "InstanceMonitoring"
-          ]
+          "Ref": "InstanceMonitoring"
         },
         "NetworkInterfaces": [
           {
@@ -120,13 +108,7 @@
             "PrivateIpAddresses": [
               {
                 "PrivateIpAddress": {
-                  "Fn::FindInMap": [
-                    "InstanceSettingsMap",
-                    {
-                      "Ref": "AWS::Region"
-                    },
-                    "InstancePrivateIpAddress"
-                  ]
+                  "Ref": "InstancePrivateIpAddress"
                 },
                 "Primary": "true"
               }
@@ -142,13 +124,7 @@
           {
             "Key": "Name",
             "Value": {
-              "Fn::FindInMap": [
-                "InstanceSettingsMap",
-                {
-                  "Ref": "AWS::Region"
-                },
-                "InstanceName"
-              ]
+              "Ref": "InstanceName"
             }
           }
         ],
